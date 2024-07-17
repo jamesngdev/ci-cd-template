@@ -1,0 +1,47 @@
+stages:
+  - lint
+  - build
+  - deploy
+
+variables:
+  IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+
+lint:
+  stage: lint
+  image: node:20-alpine
+  tags:
+    - docker-runer
+  script:
+    - yarn install --no-cache
+    - yarn lint
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"' # Only check lint when has new merge request
+
+build:
+  stage: build
+  tags:
+    - bash-runner
+  script:
+    - echo "Build docker image..."
+    - docker build --no-cache -t $IMAGE_TAG .
+    - echo "Run images docker image..."
+  only:
+    - deploy-dev # Only deploy in deploy-dev branch
+
+deploy:
+  stage: deploy
+  tags:
+    - bash-runner
+  script:
+    - echo "Stop old container..."
+    - docker stop ate-backend
+    - echo "Remove old container..."
+    - docker rm ate-backend
+    - echo "Run new container..."
+    - docker run -d --network [network_name] --name [container_name] -p 3000:3000 --restart=always $IMAGE_TAG
+    - echo "Prune images..."
+    - docker image prune -a -f
+    - echo "Deployed successfully!"
+  only:
+    - deploy-dev # Only deploy in deploy-dev branch
+
